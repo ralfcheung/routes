@@ -1,13 +1,14 @@
 require('dotenv').config();
-const http = require('http'),
-  express = require('express'),
-  app = express(),
-  port = process.env.PORT || 3000,
-  bodyParser = require('body-parser'),
-  Memcached = require('memcached'),
-  path = require('path'),
-  memcached = new Memcached('127.0.0.1:11211', {poolSize: 20, idle: 400, timeout: 300}),
-  Raven = require('raven');
+const http = require('http');
+const express = require('express');
+const app = express();
+const port = process.env.PORT || 3000;
+const bodyParser = require('body-parser');
+const Memcached = require('memcached');
+const path = require('path');
+const memcached = new Memcached('127.0.0.1:11211',
+  {poolSize: 20, idle: 400, timeout: 300});
+const Raven = require('raven');
 
 Raven.config('https://e1b17b42c68a4837a4990328c1daa240@sentry.io/1193534').install();
 
@@ -30,5 +31,5 @@ app.use(function onError(err, req, res, next) {
 });
 
 http.createServer(app).listen(port, function () {
-  console.log("HTTP listening on port", port);
+  console.log('HTTP listening on port', port);
 });

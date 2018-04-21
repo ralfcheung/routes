@@ -1,19 +1,17 @@
 module.exports = function (cache, logger) {
-
-  const request = require('request'),
-    uuid = require('uuid'),
-    model = require('./model'),
-    db = require('../../config/connection');
+  const request = require('request');
+  const uuid = require('uuid');
+  const db = require('../../config/connection');
 
   /*
   * Get directions from cache
   *
   * @param token: Token of the route info
   *
-  * @return Promise object of the route info of the token, undefined if doesn't exist
+  * @return Promise object of the route info of the token,
+  * undefined if doesn't exist
   * */
   const getDirectionFromCache = function (token) {
-
     return new Promise(function (resolve, reject) {
       cache.get(token, function (err, data) {
         if (err) {
@@ -27,10 +25,8 @@ module.exports = function (cache, logger) {
         } else {
           resolve(null);
         }
-
       });
     });
-
   };
 
   /*
@@ -46,11 +42,11 @@ module.exports = function (cache, logger) {
         if (err) {
           return reject(err);
         }
+
         logger.debug('Found route ' + token + 'in database');
         resolve(result);
       });
-    })
-
+    });
   };
 
   /*
@@ -62,17 +58,14 @@ module.exports = function (cache, logger) {
   * @return Promise object of the route info, error otherwise
   * */
   const directionsFromGoogle = function (options, id) {
-
     return new Promise(function (resolve, reject) {
-
       request(options, function (error, response, body) {
-
         if (error) {
           logger.debug('Request direction error:', error);
           reject(error);
         }
 
-        let routeInfo = {token: id, status: "success"};
+        let routeInfo = {token: id, status: 'success'};
 
         routeInfo.total_distance = body.routes[0].legs[0].distance.value;
         routeInfo.total_time = body.routes[0].legs[0].duration.value;
@@ -81,13 +74,14 @@ module.exports = function (cache, logger) {
 
         let locations = [];
 
-        for (var i = 0; i < steps.length; i++) {
+        for (let i = 0; i < steps.length; i++) {
           const step = steps[i];
-          let startLocation = [step.start_location.lat, step.start_location.lng];
+          let startLocation = [step.start_location.lat,
+            step.start_location.lng];
+
           let endLocation = [step.end_location.lat, step.end_location.lng];
           locations.push(startLocation);
           locations.push(endLocation);
-
         }
 
         routeInfo.path = locations;
@@ -96,11 +90,8 @@ module.exports = function (cache, logger) {
         saveRouteInfoToCache(routeInfo);
 
         resolve(routeInfo);
-
       });
-
     });
-
   };
 
   /*
@@ -110,9 +101,7 @@ module.exports = function (cache, logger) {
   *
   * */
   const saveDirectionsToDatabase = function (routeInfo) {
-
     return new Promise(function (resolve, reject) {
-
       // update the record with the route info, or insert if it doesn't exist
       db.collection('routes').update({token: routeInfo.token}, routeInfo,
         {upsert: true}, function (err, result) {
@@ -123,9 +112,7 @@ module.exports = function (cache, logger) {
             resolve();
           }
         });
-
     });
-
   };
 
   /*
@@ -135,8 +122,7 @@ module.exports = function (cache, logger) {
   *
   * */
   const createRouteInfoInDatabase = function (id) {
-
-    const info = {token: id, 'status': 'in progress'};
+    const info = {'token': id, 'status': 'in progress'};
 
     db.collection('routes').insert(info,
       function (err) {
@@ -144,66 +130,82 @@ module.exports = function (cache, logger) {
           logger.error('Create Route Info Error:', err);
           return;
         }
+
         logger.info('Created Route Info:', id);
       });
 
+    // cache it, even though it's pretty much an empty document
     saveRouteInfoToCache(info);
-
   };
 
-  const saveRouteInfoToCache = function (routeInfo) {
+  /*
+  * Save route info to cache
+  *
+  * @param routeInfo: Route info document to be cached
+  * @param duration: How long is the routeInfo going
+  * to be cached for, default 1800s (30mins)
+  *
+  * */
+  const saveRouteInfoToCache = function (routeInfo, duration = 1800) {
+    // ignore null info
+    if (routeInfo == null) {
+      return;
+    }
 
     // cache the route information for 30mins
-    cache.set(routeInfo.token, routeInfo, 1800, function (err) {
+    cache.set(routeInfo.token, routeInfo, duration, function (err) {
       if (err) {
         logger.error(err);
         return;
       }
+
       logger.info('Cached route info:', routeInfo.token);
     });
+  };
 
-  }
-
+  /* Create a directions request
+  *
+  * @param location: List of Coordinates [[lat, lng], [lat2, lng2]...]
+  * */
   const createDirectionsRequest = function (locations) {
-
     let origin = locations[0];
     let destination = locations[1];
-    let url = "https://maps.googleapis.com/maps/api/directions/json?origin=" + origin[0] + "," +
-      origin[1] + "&destination=" + destination[0] + "," + destination[1];
+    let url = 'https://maps.googleapis.com/maps/api/directions/json?origin=' + origin[0] + ',' +
+      origin[1] + '&destination=' + destination[0] + ',' + destination[1];
 
     // parse the waypoints
     if (locations.length > 2) {
-
-      let waypoints = "&waypoints=";
-      for (var i = 1; i < locations.length - 1; i++) {  // only get the middle elements in the array
+      let waypoints = '&waypoints=';
+      for (let i = 1; i < locations.length - 1; i++) {
+        // only get the middle elements in the array
         let location = locations[i];
-        waypoints += location[0] + "," + location[1] + "|";
+        waypoints += location[0] + ',' + location[1] + '|';
       }
+      url += waypoints;
     }
 
-    url += "&key=" + process.env.GOOGLE_MAPS_API;
+    url += '&key=' + process.env.GOOGLE_MAPS_API;
 
     return {
       url: url,
       method: 'GET',
-      json: true
+      json: true,
     };
-
-  }
+  };
 
   const sanitizeRouteResponse = function (obj, keys) {
-    if (keys instanceof Array) {
-      keys.forEach(e => delete obj[e]);
+    if (keys instanceof Array && obj !== null && typeof obj === 'object') {
+      keys.forEach((e) => delete obj[e]);
     }
-  }
+  };
 
   return {
     get: function (req, res) {
-
       let token = req.params.token;
 
-      if (typeof token === 'undefined')
-        return new Error('Missing token parameter');
+      if (typeof token === 'undefined') {
+        throw new Error('Missing token parameter');
+      }
 
       getDirectionFromCache(token)
         .then(function (result) {
@@ -220,23 +222,25 @@ module.exports = function (cache, logger) {
             sanitizeRouteResponse(result, ['_id', 'token']);
             return res.send(result);
           } else {
-            return res.send({"status": "failure", "error": "Token '" + token + "' not found"});
+            return res.send({
+              'status': 'failure',
+              'error': 'Token \'' + token + '\' not found',
+            });
           }
-
         })
         .catch(function (err) {
           return err;
         });
-
     },
     request: function (req, res) {
-
       let route = req.body.route;
 
       if (typeof route === 'undefined' || route.length < 2) {
         res.statusCode = 412;
-        throw new Error('Incorrect body, should be: {route: [["ROUTE_START_LATITUDE\", ' +
-          '\"ROUTE_START_LONGITUDE\"] [\"DROPOFF_LATITUDE_#1\", \"DROPOFF_LONGITUDE_#1\"],' + '...]}');
+        throw new Error('Incorrect body, should be: ' +
+          '{route: [["ROUTE_START_LATITUDE\", ' +
+          '\"ROUTE_START_LONGITUDE\"] [\"DROPOFF_LATITUDE_#1\",' +
+          ' \"DROPOFF_LONGITUDE_#1\"],' + '...]}');
       }
 
       const options = createDirectionsRequest(route);
@@ -247,12 +251,11 @@ module.exports = function (cache, logger) {
 
       // request directions
       directionsFromGoogle(options, id)
-        .then(saveDirectionsToDatabase)
+        .then(saveDirectionsToDatabase);
 
       // return the token
       return res.send({token: id});
-    }
+    },
 
-  }
-
+  };
 };
