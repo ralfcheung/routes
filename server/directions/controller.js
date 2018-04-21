@@ -1,9 +1,9 @@
 module.exports = function (cache, logger) {
 
-  var request = require('request');
-  var uuid = require('uuid');
-  var model = require('./model');
-  var db = require('../../config/connection');
+  const request = require('request'),
+    uuid = require('uuid'),
+    model = require('./model'),
+    db = require('../../config/connection');
 
   /*
   * Get directions from cache
@@ -20,10 +20,14 @@ module.exports = function (cache, logger) {
           reject(err);
           return;
         }
-        if (!data) {
-          logger.log('Cache missed:', token);
+
+        if (data) {
+          logger.debug('Found data in cache', token);
+          resolve(data);
+        } else {
+          resolve(null);
         }
-        resolve(data);
+
       });
     });
 
@@ -37,13 +41,12 @@ module.exports = function (cache, logger) {
   * @return Promise object of the result
   * */
   const getDirectionsFromDatabase = function (token) {
-
     return new Promise(function (resolve, reject) {
       db.collection('routes').findOne({token: token}, function (err, result) {
         if (err) {
-          reject(err);
+          return reject(err);
         }
-        logger.log('Found route ' + token + 'in database');
+        logger.debug('Found route ' + token + 'in database');
         resolve(result);
       });
     })
@@ -65,7 +68,7 @@ module.exports = function (cache, logger) {
       request(options, function (error, response, body) {
 
         if (error) {
-          logger.log('warn', 'Request direction error', {'info': error});
+          logger.debug('Request direction error:', error);
           reject(error);
         }
 
@@ -133,7 +136,7 @@ module.exports = function (cache, logger) {
   * */
   const createRouteInfoInDatabase = function (id) {
 
-    const info = {token: id, 'status': 'pending'};
+    const info = {token: id, 'status': 'in progress'};
 
     db.collection('routes').insert(info,
       function (err) {
@@ -150,7 +153,6 @@ module.exports = function (cache, logger) {
 
   const saveRouteInfoToCache = function (routeInfo) {
 
-    console.log(routeInfo);
     // cache the route information for 30mins
     cache.set(routeInfo.token, routeInfo, 1800, function (err) {
       if (err) {
@@ -166,7 +168,8 @@ module.exports = function (cache, logger) {
 
     let origin = locations[0];
     let destination = locations[1];
-    let url = "https://maps.googleapis.com/maps/api/directions/json?origin=" + origin[0] + "," + origin[1] + "&destination=" + destination[0] + "," + destination[1];
+    let url = "https://maps.googleapis.com/maps/api/directions/json?origin=" + origin[0] + "," +
+      origin[1] + "&destination=" + destination[0] + "," + destination[1];
 
     // parse the waypoints
     if (locations.length > 2) {
@@ -188,6 +191,12 @@ module.exports = function (cache, logger) {
 
   }
 
+  const sanitizeRouteResponse = function (obj, keys) {
+    if (keys instanceof Array) {
+      keys.forEach(e => delete obj[e]);
+    }
+  }
+
   return {
     get: function (req, res) {
 
@@ -199,17 +208,24 @@ module.exports = function (cache, logger) {
       getDirectionFromCache(token)
         .then(function (result) {
           if (result) {
-            return res.send({token: result});
+            sanitizeRouteResponse(result, ['_id', 'token']);
+            return res.send(result);
           } else {
             return getDirectionsFromDatabase(token);
-            // db call to fetch directions
+            // db call to directions document
           }
         })
         .then(function (result) {
-          return res.send(result);
+          if (result) {
+            sanitizeRouteResponse(result, ['_id', 'token']);
+            return res.send(result);
+          } else {
+            return res.send({"status": "failure", "error": "Token '" + token + "' not found"});
+          }
+
         })
         .catch(function (err) {
-          return
+          return err;
         });
 
     },
@@ -217,8 +233,11 @@ module.exports = function (cache, logger) {
 
       let route = req.body.route;
 
-      if (typeof route === 'undefined' && route.length < 2)
-        return new Error('Missing token parameter');
+      if (typeof route === 'undefined' || route.length < 2) {
+        res.statusCode = 412;
+        throw new Error('Incorrect body, should be: {route: [["ROUTE_START_LATITUDE\", ' +
+          '\"ROUTE_START_LONGITUDE\"] [\"DROPOFF_LATITUDE_#1\", \"DROPOFF_LONGITUDE_#1\"],' + '...]}');
+      }
 
       const options = createDirectionsRequest(route);
       const id = uuid.v1();

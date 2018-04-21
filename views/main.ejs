@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- <title>Hello World DApp</title> -->
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
+
+    <script src="https://cdn.rawgit.com/ethereum/web3.js/develop/dist/web3.js"></script>
+    <script src="https://code.jquery.com/jquery-3.1.1.slim.min.js"></script>
+    <script src="index.js" defer></script>
+
+    <link href='https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/angular_material/1.1.8/angular-material.min.css">
+    <link href="style.css" rel='stylesheet' type='text/css'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Angular Material requires Angular.js Libraries -->
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.9/angular.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.9/angular-animate.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.9/angular-aria.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.9/angular-messages.min.js"></script>
+    <script async defer
+            src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA2o-2ygMAPeti5ATBexN1wFNbpF6Nq0rc&callback=initMap">
+    </script>
+    <!-- Angular Material Library -->
+    <script src="https://ajax.googleapis.com/ajax/libs/angular_material/1.1.8/angular-material.min.js"></script>
+
+</head>
+<body ng-app="BlankApp" ng-cloak>
+
+<div ng-controller="AppCtrl" layout="column" ng-cloak>
+    <section layout="row" id="main" flex>
+
+        <md-sidenav
+                class="md-sidenav-left"
+                md-component-id="left"
+                md-is-locked-open="$mdMedia('gt-md')"
+                md-whiteframe="4">
+
+            <md-toolbar class="md-theme-indigo">
+                <h1 class="md-toolbar-tools">Sidenav Left</h1>
+            </md-toolbar>
+
+            <md-content layout-padding ng-controller="LeftCtrl">
+                <md-button ng-click="close()" class="md-primary" hide-gt-md>
+                    Close Sidenav Left
+                </md-button>
+                <p hide show-gt-md>
+                    This sidenav is locked open on your device. To go back to the default behavior,
+                    narrow your display.
+                </p>
+            </md-content>
+
+        </md-sidenav>
+
+        <md-content layout="column" layout-align="top center" flex layout-padding>
+
+            <div layout="column" layout-align="top center">
+                <p>
+                    The left sidenav will 'lock open' on a medium (>=960px wide) device.
+                </p>
+                <p>
+                    The right sidenav will focus on a specific child element.
+                </p>
+
+                <div>
+                    <md-button ng-click="toggleLeft()"
+                               class="md-primary" hide-gt-md>
+                        Toggle left
+                    </md-button>
+                </div>
+
+                <div>
+                    <md-button ng-click="toggleRight()"
+                               ng-hide="isOpenRight()"
+                               class="md-primary">
+                        Toggle right
+                    </md-button>
+                </div>
+            </div>
+
+            <div class='main'>
+                <h1>A Simple Hello World Voting Application</h1>
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead>
+                        <tr>
+                            <th>Candidate</th>
+                            <th>Votes</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr>
+                            <td>Rama</td>
+                            <td id="candidate-1"></td>
+                        </tr>
+                        <tr>
+                            <td>Nick</td>
+                            <td id="candidate-2"></td>
+                        </tr>
+                        <tr>
+                            <td>Jose</td>
+                            <td id="candidate-3"></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <input type="text" id="candidate"/>
+                <a href="#" onclick="voteForCandidate()" class="btn btn-primary">Vote</a>
+            </div>
+
+            <div id="map"></div>
+
+            <div flex></div>
+
+        </md-content>
+
+        <md-sidenav class="md-sidenav-right md-whiteframe-4dp" md-component-id="right">
+
+            <md-toolbar class="md-theme-light">
+                <h1 class="md-toolbar-tools">Sidenav Right</h1>
+            </md-toolbar>
+            <md-content ng-controller="RightCtrl" layout-padding>
+                <form>
+                    <md-input-container>
+                        <label for="testInput">Test input</label>
+                        <input type="text" id="testInput"
+                               ng-model="data" md-autofocus>
+                    </md-input-container>
+                </form>
+                <md-button ng-click="close()" class="md-primary">
+                    Close Sidenav Right
+                </md-button>
+            </md-content>
+
+        </md-sidenav>
+
+    </section>
+</div>
+
+
+</body>
+
+</html>

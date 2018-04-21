@@ -2,14 +2,16 @@ const mongoose = require('mongoose');
 const configDB = require('./database.js');
 
 const options = {
-  db: {native_parser: true},
-  server: {poolSize: 5},
+  native_parser: true,
+  poolSize: 5,
   user: process.env.dbUser,
-  pass: process.env.dbPassword
+  pass: process.env.dbPassword,
+  // mongos: true     <- enable it for scaling
 };
 
-module.exports = connection = mongoose.createConnection(configDB.dbURL, options);
+mongoose.connect(configDB.dbURL, options);
 
-connection.on('connected', function () {
-  console.log('Connected to Database');
-});
+module.exports = connection = mongoose.connection;
+
+connection.on('error', console.error.bind(console, 'MongoDB connection error:'));
+connection.on('connected', console.log.bind(console, 'Connected to MongoDB'));

@@ -1,7 +1,7 @@
-var mongoose = require('mongoose');
-var dbConnection = require('../../config/connection');
+const mongoose = require('mongoose');
+const db = require('../../config/connection');
 
-var routeSchema = mongoose.Schema({
+const routeSchema = mongoose.Schema({
 
   "path": {
     "type": {
@@ -12,10 +12,11 @@ var routeSchema = mongoose.Schema({
   },
   "total_distance": Number,
   "total_time": Number,
-  'id': String,
   'status': String,
-  'token': String
+  'token': {type: String, index: true}
 
 });
 
-module.exports = dbConnection.model('routes', routeSchema);
+mongoose.model('routes', routeSchema);
+
+db.collection('routes').createIndex({token: 1}, {unique: true}); // create index for token if it doesn't exist yet
