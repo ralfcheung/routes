@@ -10,7 +10,7 @@ const memcached = new Memcached('127.0.0.1:11211',
   {poolSize: 20, idle: 400, timeout: 300});
 const Raven = require('raven');
 
-Raven.config('https://e1b17b42c68a4837a4990328c1daa240@sentry.io/1193534').install();
+Raven.config(process.env.SENTRY_KEY, {sendTimeout: 5}).install();
 
 app.use(Raven.requestHandler());
 app.set('views', path.join(__dirname, 'views'));

@@ -44,7 +44,7 @@ module.exports = function (cache, logger) {
         }
 
         logger.debug('Found route ' + token + 'in database');
-        resolve(result);
+        return resolve(result);
       });
     });
   };
@@ -148,7 +148,7 @@ module.exports = function (cache, logger) {
   * */
   const saveRouteInfoToCache = function (routeInfo, duration = 1800) {
     // ignore null info
-    if (routeInfo == null) {
+    if (routeInfo === null) {
       return;
     }
 
@@ -212,21 +212,20 @@ module.exports = function (cache, logger) {
           if (result) {
             sanitizeRouteResponse(result, ['_id', 'token']);
             return res.send(result);
-          } else {
-            return getDirectionsFromDatabase(token);
-            // db call to directions document
           }
+
+          return getDirectionsFromDatabase(token);
+          // db call to directions document
         })
         .then(function (result) {
           if (result) {
             sanitizeRouteResponse(result, ['_id', 'token']);
             return res.send(result);
-          } else {
-            return res.send({
-              'status': 'failure',
-              'error': 'Token \'' + token + '\' not found',
-            });
           }
+          return res.send({
+            'status': 'failure',
+            'error': 'Token \'' + token + '\' not found',
+          });
         })
         .catch(function (err) {
           return err;
