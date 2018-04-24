@@ -1,6 +1,5 @@
 module.exports = class AppError extends Error {
   constructor(message, status) {
-
     // Calling parent constructor of base Error class.
     super(message);
 
@@ -14,6 +13,5 @@ module.exports = class AppError extends Error {
     // I'm going to use preferred HTTP status for this error types.
     // `500` is the default value if not specified.
     this.status = status || 500;
-
   }
 };

@@ -1,8 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-module.exports = function (cache, db) {
-
+module.exports = function(cache, db) {
   let logger = require('../../config/logger');
   DirectionsController = require('./controller');
 

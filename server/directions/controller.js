@@ -5,8 +5,19 @@ let uuid = require('uuid');
 let environment = require('../../config/env');
 let APIError = require('../../error/AppError');
 
+/* Controller for Directions
+*
+* */
 class DirectionsController {
-
+  /*
+  * Constructor for DirectionsController
+  *
+  * @param cache {Object} Memcached object
+  * @param logger {Object} Logger object
+  * @param db {Object} MongoDB connection instance
+  *
+  * @return {Void}
+  * */
   constructor(cache, logger, db) {
     this.cache = cache;
     this.logger = logger;
@@ -16,18 +27,16 @@ class DirectionsController {
   /*
   * Get directions from cache
   *
-  * @param token: Token of the route info
+  * @param token {String} Token of the route info
   *
-  * @return Promise object of the route info of the token,
+  * @return {Object} Promise object of the route info of the token,
   * undefined if doesn't exist
   * */
   getDirectionFromCache(token) {
     let that = this;
 
-    return new Promise(function (resolve, reject) {
-
-      that.cache.get(token, function (err, data) {
-
+    return new Promise(function(resolve, reject) {
+      that.cache.get(token, function(err, data) {
         if (err) {
           that.logger.debug('Error in memcached', err);
         }
@@ -45,20 +54,20 @@ class DirectionsController {
   /*
   * Get directions from database
   *
-  * @param token: Token of the route info
+  * @param token {String}: Token of the route info
   *
-  * @return Promise object of the result
+  * @return {Object} Promise object of the result
   * */
   getDirectionsFromDatabase(token) {
     let that = this;
-    return new Promise(function (resolve, reject) {
+    return new Promise(function(resolve, reject) {
       that.db.collection('routes').findOne({token: token},
-        function (err, result) {
+        function(err, result) {
         if (err) {
           return reject(err);
         }
 
-          that.logger.debug('Found route ' + token + 'in database');
+        that.logger.debug('Found route ' + token + 'in database');
         return resolve(result);
       });
     });
@@ -67,7 +76,8 @@ class DirectionsController {
   /*
   * Request directions from google
   *
-  * @param {Object} options Requst options object for requesting directions {url: String, method: String, json: Boolean}
+  * @param {Object} options Requst options object for
+  * requesting directions {url: String, method: String, json: Boolean}
   * @param {string} id: Token of the route info
   *
   * @return Promise object of the route info, error otherwise
@@ -75,14 +85,15 @@ class DirectionsController {
   directionsFromGoogle(options, id) {
     let that = this;
 
-    if (options === null || !options.hasOwnProperty('url') || !options.hasOwnProperty('method')
-      || !options.hasOwnProperty('json') || options.url === null || options.method === null || options.json === null) {
+    if (options === null || !options.hasOwnProperty('url')
+      || !options.hasOwnProperty('method')
+      || !options.hasOwnProperty('json') || options.url === null
+      || options.method === null || options.json === null) {
       return;
     }
 
-    return new Promise(function (resolve, reject) {
-
-      request.get(options, function (error, response, body) {
+    return new Promise(function(resolve, reject) {
+      request.get(options, function(error, response, body) {
         if (error || body.status !== 'OK') {
           that.logger.debug('Request direction error:', body.error_message);
           return reject(error);
@@ -114,7 +125,7 @@ class DirectionsController {
         // cache the route info
         that.saveRouteInfoToCache(routeInfo.token, routeInfo);
 
-        resolve(routeInfo);
+        return resolve(routeInfo);
       });
     });
   }
@@ -122,21 +133,21 @@ class DirectionsController {
   /*
   * Save route info to database and cache the route info asynchronously
   *
-  * @param {Object} routeInfo: Route information document according to the Route schema
+  * @param {Object} routeInfo: Route information
+   * document according to the Route schema
   *
   * */
   saveDirectionsToDatabase(routeInfo) {
     let that = this;
 
-    return new Promise(function (resolve, reject) {
-
+    return new Promise(function(resolve, reject) {
       if (routeInfo === null || !routeInfo.hasOwnProperty('token')) {
         return reject(new Error('Route Info Empty or has no \'token\' key'));
       }
 
       // update the record with the route info, or insert if it doesn't exist
       that.db.collection('routes').update({token: routeInfo.token}, routeInfo,
-        {upsert: true}, function (err, result) {
+        {upsert: true}, function(err, result) {
           if (err) {
             if (process.env.NODE_ENV !== 'test') {
               that.logger.warn('Save direction error', {'info': err});
@@ -154,11 +165,12 @@ class DirectionsController {
   *
   * @param {String} id Token of the route info
   *
+  * @returns {Void}
   * */
   createRouteInfoInDatabase(id, cb = null) {
     const info = {'token': id, 'status': 'in progress'};
 
-    this.db.collection('routes').insert(info, err => {
+    this.db.collection('routes').insert(info, (err) => {
         if (err) {
           if (process.env.NODE_ENV !== 'test') {
             this.logger.warn('Create Route Info Error:', err);
@@ -176,7 +188,6 @@ class DirectionsController {
       if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
         this.logger.info('Created Route Info:', id);
       }
-
       });
 
     // cache it, even though it's pretty much an empty document
@@ -198,8 +209,7 @@ class DirectionsController {
     }
 
     // cache the route information for 30mins
-    this.cache.set(token, routeInfo, duration, err => {
-
+    this.cache.set(token, routeInfo, duration, (err) => {
       if (err) {
         if (process.env.NODE_ENV === 'test'
           || process.env.NODE_ENV === 'development') {
@@ -226,6 +236,9 @@ class DirectionsController {
   *
   * @param {Array.Array} location List of Coordinates
   * [[lat, lng], [lat2, lng2]...]
+  *
+  * @return {Object} Request object in the format of
+  * {url: String, method: String, json: Boolean}
   * */
   createDirectionsRequest(locations) {
     let origin = locations[0];
@@ -238,8 +251,9 @@ class DirectionsController {
       let waypoints = '&waypoints=';
       for (let i = 1; i < locations.length - 1; i++) {
         // only get the middle elements in the array
-        if (i % 100 == 0) {
-          process.nextTick(); // since this may last a long time, process the next request first
+        if (i % 100 === 0) {
+          process.nextTick(); // since this may last a long time,
+          // process the next request first
         }
         let location = locations[i];
         waypoints += location[0] + ',' + location[1] + '|';
@@ -263,6 +277,7 @@ class DirectionsController {
   * @param {Object} obj object to be sanitized
   * @param {Array.String} keys to be sanitized in the object.
   *
+  * @return {Void}
   * */
   sanitizeRouteResponse(obj, keys = ['_id', 'token']) {
     if (keys instanceof Array && obj !== null && typeof obj === 'object') {
@@ -272,6 +287,14 @@ class DirectionsController {
     }
   }
 
+  /*
+  * Get function for GET /route
+  *
+  * @param {Object} req Request object from express
+  * @param {Object} res Response object from express
+  *
+  * @return {Void}
+  * */
   get(req, res) {
     let token = req.params.token;
 
@@ -280,7 +303,7 @@ class DirectionsController {
     }
 
     this.getDirectionFromCache(token)
-      .then(result => {
+      .then((result) => {
         if (result) {
           this.sanitizeRouteResponse(result, ['_id', 'token']);
           return res.send(result);
@@ -288,7 +311,7 @@ class DirectionsController {
         return this.getDirectionsFromDatabase(token);
         // db call to directions document
       })
-      .then(result => {
+      .then((result) => {
         if (result) {
           this.sanitizeRouteResponse(result, ['_id', 'token']);
           return res.send(result);
@@ -298,25 +321,35 @@ class DirectionsController {
           'error': 'Token \'' + token + '\' not found',
         });
       })
-      .catch(function (err) {
+      .catch(function(err) {
         return err;
       });
   }
 
+  /*
+  * Get function for GET /route
+  *
+  * @param {Object} req Request object from express
+  * @param {Object} res Response object from express
+  * @param {Function} next Next step in the pipeline after this function,
+  * used to pass Error
+  *
+  * @return {Void}
+  * */
   requestDirections(req, res, next) {
     let route = req.body.route;
 
     if (typeof route === 'undefined' || route.length < 2) {
-
       return next(new APIError('Incorrect body, should be: ' +
         '{route: [["ROUTE_START_LATITUDE\", ' +
         '\"ROUTE_START_LONGITUDE\"] [\"DROPOFF_LATITUDE_#1\",' +
         ' \"DROPOFF_LONGITUDE_#1\"],' + '...]}', 412));
-
     }
 
-    // in actual production, the following request would be sent to a MQ (Kafka, Rabbit, etc)
-    // and processed by different consumers (e.g. analytics, actual directions request)
+    // in actual production, the following request would be
+    // sent to a MQ (Kafka, Rabbit, etc)
+    // and processed by different consumers (e.g. analytics,
+    // actual directions request)
     const options = this.createDirectionsRequest(route);
     const id = uuid.v1();
 

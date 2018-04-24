@@ -1,5 +1,4 @@
 class Cache {
-
   constructor(store, cb = null) {
     this.store = store;
     this.cb = cb;

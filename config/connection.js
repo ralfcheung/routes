@@ -16,7 +16,7 @@ mongoose.connect(configDB.dbURL, options);
 
 module.exports = connection = mongoose.connection;
 
-connection.on('error', function () {
+connection.on('error', function() {
   logger.error('MongoDB connection error:');
   mongoose.disconnect(); // mongoose doesn't disconnect on error
   throw new Error('Disconnected from MongoDB');
@@ -25,7 +25,7 @@ connection.on('error', function () {
 connection.on('connected',
   logger.info.bind(logger, 'Connected to MongoDB'));
 
-connection.on('disconnected', function () {
+connection.on('disconnected', function() {
   logger.error('Disconnected from MongoDB');
   throw new Error('Disconnected from MongoDB');
 });
