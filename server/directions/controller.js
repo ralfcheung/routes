@@ -1,7 +1,17 @@
-module.exports = function (cache, logger) {
-  const request = require('request');
-  const uuid = require('uuid');
-  const db = require('../../config/connection');
+'use strict';
+
+let request = require('request');
+let uuid = require('uuid');
+let environment = require('../../config/env');
+
+class DirectionsController {
+  // const request = require('request');
+  // const uuid = require('uuid');
+  constructor(cache, logger, db) {
+    this.cache = cache;
+    this.logger = logger;
+    this.db = db;
+  }
 
   /*
   * Get directions from cache
@@ -11,23 +21,25 @@ module.exports = function (cache, logger) {
   * @return Promise object of the route info of the token,
   * undefined if doesn't exist
   * */
-  const getDirectionFromCache = function (token) {
+  getDirectionFromCache(token) {
+    let that = this;
+
     return new Promise(function (resolve, reject) {
-      cache.get(token, function (err, data) {
+      that.cache.get(token, function (err, data) {
         if (err) {
           reject(err);
           return;
         }
 
         if (data) {
-          logger.debug('Found data in cache', token);
+          that.logger.debug('Found data in cache', token);
           resolve(data);
         } else {
           resolve(null);
         }
       });
     });
-  };
+  }
 
   /*
   * Get directions from database
@@ -36,33 +48,43 @@ module.exports = function (cache, logger) {
   *
   * @return Promise object of the result
   * */
-  const getDirectionsFromDatabase = function (token) {
+  getDirectionsFromDatabase(token) {
+    let that = this;
     return new Promise(function (resolve, reject) {
-      db.collection('routes').findOne({token: token}, function (err, result) {
+      that.db.collection('routes').findOne({token: token},
+        function (err, result) {
         if (err) {
           return reject(err);
         }
 
-        logger.debug('Found route ' + token + 'in database');
+          that.logger.debug('Found route ' + token + 'in database');
         return resolve(result);
       });
     });
-  };
+  }
 
   /*
   * Request directions from google
   *
-  * @param url: URL of the directions requeset
-  * @param id: Token of the route info
+  * @param {Object} options Requst options object for requesting directions {url: String, method: String, json: Boolean}
+  * @param {string} id: Token of the route info
   *
   * @return Promise object of the route info, error otherwise
   * */
-  const directionsFromGoogle = function (options, id) {
+  directionsFromGoogle(options, id) {
+    let that = this;
+
+    if (options === null || !options.hasOwnProperty('url') || !options.hasOwnProperty('method')
+      || !options.hasOwnProperty('json') || options.url === null || options.method === null || options.json === null) {
+      return;
+    }
+
     return new Promise(function (resolve, reject) {
-      request(options, function (error, response, body) {
-        if (error) {
-          logger.debug('Request direction error:', error);
-          reject(error);
+
+      request.get(options, function (error, response, body) {
+        if (error || body.status !== 'OK') {
+          that.logger.debug('Request direction error:', body.error_message);
+          return reject(error);
         }
 
         let routeInfo = {token: id, status: 'success'};
@@ -76,98 +98,130 @@ module.exports = function (cache, logger) {
 
         for (let i = 0; i < steps.length; i++) {
           const step = steps[i];
-          let startLocation = [step.start_location.lat,
-            step.start_location.lng];
+          if (step.hasOwnProperty('start_location')) {
+            let startLocation = [step.start_location.lat,
+              step.start_location.lng];
 
-          let endLocation = [step.end_location.lat, step.end_location.lng];
-          locations.push(startLocation);
-          locations.push(endLocation);
+            let endLocation = [step.end_location.lat, step.end_location.lng];
+            locations.push(startLocation);
+            locations.push(endLocation);
+          }
         }
 
         routeInfo.path = locations;
 
         // cache the route info
-        saveRouteInfoToCache(routeInfo);
+        that.saveRouteInfoToCache(routeInfo.token, routeInfo);
 
         resolve(routeInfo);
       });
     });
-  };
+  }
 
   /*
   * Save route info to database and cache the route info asynchronously
   *
-  * @param routeInfo: Route information document according to the Route schema
+  * @param {Object} routeInfo: Route information document according to the Route schema
   *
   * */
-  const saveDirectionsToDatabase = function (routeInfo) {
+  saveDirectionsToDatabase(routeInfo) {
+    let that = this;
+
     return new Promise(function (resolve, reject) {
+
+      if (routeInfo === null || !routeInfo.hasOwnProperty('token')) {
+        return reject(new Error('Route Info Empty or has no \'token\' key'));
+      }
+
       // update the record with the route info, or insert if it doesn't exist
-      db.collection('routes').update({token: routeInfo.token}, routeInfo,
+      that.db.collection('routes').update({token: routeInfo.token}, routeInfo,
         {upsert: true}, function (err, result) {
           if (err) {
-            logger.log('warn', 'Save direction error', {'info': err});
+            if (process.env.NODE_ENV !== 'test') {
+              that.logger.warn('Save direction error', {'info': err});
+            }
             reject(err);
           } else {
             resolve();
           }
         });
     });
-  };
+  }
 
   /*
   * Create document of the route info in the database and set status to pending
   *
-  * @param id: Token of the route info
+  * @param {String} id Token of the route info
   *
   * */
-  const createRouteInfoInDatabase = function (id) {
+  createRouteInfoInDatabase(id, cb = null) {
     const info = {'token': id, 'status': 'in progress'};
-
-    db.collection('routes').insert(info,
+    let that = this;
+    this.db.collection('routes').insert(info,
       function (err) {
         if (err) {
-          logger.error('Create Route Info Error:', err);
+          if (process.env.NODE_ENV !== 'test') {
+            that.logger.error('Create Route Info Error:', err);
+          }
+          if (cb !== null) {
+            cb();
+          }
           return;
         }
 
-        logger.info('Created Route Info:', id);
+        if (cb !== null) {
+          cb();
+        }
+        that.logger.info('Created Route Info:', id);
       });
 
     // cache it, even though it's pretty much an empty document
-    saveRouteInfoToCache(info);
-  };
+    this.saveRouteInfoToCache(info.token, info);
+  }
 
   /*
   * Save route info to cache
-  *
-  * @param routeInfo: Route info document to be cached
-  * @param duration: How long is the routeInfo going
-  * to be cached for, default 1800s (30mins)
-  *
+  * @param {string} token ID of the route info in String.
+  * @param {object} routeInfo Route info document to be cached.
+  * @param {number} duration: How long is the routeInfo going
+  * to be cached for, default 1800s (30 mins).
+  * @returns {void}
   * */
-  const saveRouteInfoToCache = function (routeInfo, duration = 1800) {
+  saveRouteInfoToCache(token, routeInfo, duration = 1800, cb = null) {
     // ignore null info
-    if (routeInfo === null) {
+    if (routeInfo === null || token === null) {
       return;
     }
 
+    let that = this;
     // cache the route information for 30mins
-    cache.set(routeInfo.token, routeInfo, duration, function (err) {
+    this.cache.set(token, routeInfo, duration, function (err) {
+
       if (err) {
-        logger.error(err);
+        if (process.env.NODE_ENV != 'test') {
+          console.log(process.env.NODE_ENV);
+          that.logger.warn(err);
+        }
+        if (cb) {
+          cb(err);
+        }
         return;
       }
 
-      logger.info('Cached route info:', routeInfo.token);
+      that.logger.info('Cached route info:', token);
+
+      if (cb) {
+        cb(null);
+      }
     });
-  };
+  }
 
   /* Create a directions request
   *
-  * @param location: List of Coordinates [[lat, lng], [lat2, lng2]...]
+  * @param {Array.Array} location List of Coordinates
+  * [[lat, lng], [lat2, lng2]...]
   * */
-  const createDirectionsRequest = function (locations) {
+  createDirectionsRequest(locations) {
     let origin = locations[0];
     let destination = locations[1];
     let url = 'https://maps.googleapis.com/maps/api/directions/json?origin=' + origin[0] + ',' +
@@ -178,83 +232,93 @@ module.exports = function (cache, logger) {
       let waypoints = '&waypoints=';
       for (let i = 1; i < locations.length - 1; i++) {
         // only get the middle elements in the array
+        if (i % 100 == 0) {
+          process.nextTick(); // since this may last a long time, process the next request first
+        }
         let location = locations[i];
         waypoints += location[0] + ',' + location[1] + '|';
       }
       url += waypoints;
     }
 
-    url += '&key=' + process.env.GOOGLE_MAPS_API;
+    url += '&key=' + environment[process.env.NODE_ENV].googleMapsAPIKey;
 
     return {
       url: url,
       method: 'GET',
       json: true,
     };
-  };
+  }
 
-  const sanitizeRouteResponse = function (obj, keys) {
+  sanitizeRouteResponse(obj, keys = ['_id', 'token']) {
     if (keys instanceof Array && obj !== null && typeof obj === 'object') {
       keys.forEach((e) => delete obj[e]);
+    } else {
+      return;
     }
-  };
+  }
 
-  return {
-    get: function (req, res) {
-      let token = req.params.token;
+  get(req, res) {
+    let token = req.params.token;
 
-      if (typeof token === 'undefined') {
-        throw new Error('Missing token parameter');
-      }
+    if (typeof token === 'undefined') {
+      throw new Error('Missing token parameter');
+    }
 
-      getDirectionFromCache(token)
-        .then(function (result) {
-          if (result) {
-            sanitizeRouteResponse(result, ['_id', 'token']);
-            return res.send(result);
-          }
+    let that = this;
 
-          return getDirectionsFromDatabase(token);
-          // db call to directions document
-        })
-        .then(function (result) {
-          if (result) {
-            sanitizeRouteResponse(result, ['_id', 'token']);
-            return res.send(result);
-          }
-          return res.send({
-            'status': 'failure',
-            'error': 'Token \'' + token + '\' not found',
-          });
-        })
-        .catch(function (err) {
-          return err;
+    this.getDirectionFromCache(token)
+      .then(function (result) {
+        if (result) {
+          that.sanitizeRouteResponse(result, ['_id', 'token']);
+          return res.send(result);
+        }
+
+        return that.getDirectionsFromDatabase(token);
+        // db call to directions document
+      })
+      .then(function (result) {
+        if (result) {
+          that.sanitizeRouteResponse(result, ['_id', 'token']);
+          return res.send(result);
+        }
+        return res.send({
+          'status': 'failure',
+          'error': 'Token \'' + token + '\' not found',
         });
-    },
-    request: function (req, res) {
-      let route = req.body.route;
+      })
+      .catch(function (err) {
+        return err;
+      });
+  }
 
-      if (typeof route === 'undefined' || route.length < 2) {
-        res.statusCode = 412;
-        throw new Error('Incorrect body, should be: ' +
-          '{route: [["ROUTE_START_LATITUDE\", ' +
-          '\"ROUTE_START_LONGITUDE\"] [\"DROPOFF_LATITUDE_#1\",' +
-          ' \"DROPOFF_LONGITUDE_#1\"],' + '...]}');
-      }
+  requestDirections(req, res) {
+    let route = req.body.route;
 
-      const options = createDirectionsRequest(route);
-      const id = uuid.v1();
+    if (typeof route === 'undefined' || route.length < 2) {
+      res.statusCode = 412;
+      throw new Error('Incorrect body, should be: ' +
+        '{route: [["ROUTE_START_LATITUDE\", ' +
+        '\"ROUTE_START_LONGITUDE\"] [\"DROPOFF_LATITUDE_#1\",' +
+        ' \"DROPOFF_LONGITUDE_#1\"],' + '...]}');
+    }
 
-      // create a route collection in database with status set to pending
-      createRouteInfoInDatabase(id);
+    const options = this.createDirectionsRequest(route);
+    const id = uuid.v1();
 
-      // request directions
-      directionsFromGoogle(options, id)
-        .then(saveDirectionsToDatabase);
+    // create a route collection in database with status set to pending
+    this.createRouteInfoInDatabase(id);
 
-      // return the token
-      return res.send({token: id});
-    },
+    let that = this;
 
-  };
-};
+    // request directions
+    this.directionsFromGoogle(options, id)
+      .then(that.saveDirectionsToDatabase.bind(that))
+      .catch(this.logger.error.bind(this.logger));
+
+    // return the token
+    return res.send({token: id});
+  }
+}
+
+module.exports = DirectionsController;

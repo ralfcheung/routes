@@ -1,14 +1,14 @@
+const env = require('./env');
 const mongoose = require('mongoose');
-const configDB = require('./database.js');
+const configDB = require('./database.js')(env);
 const logger = require('./logger');
 
 const options = {
   native_parser: true,
   poolSize: 5,
-  user: process.env.dbUser,
-  pass: process.env.dbPassword,
+  user: env.dbUser,
+  pass: env.dbPassword,
   auto_reconnect: true,
-  // autoConn
   // mongos: true     <- enable it for scaling
 };
 
