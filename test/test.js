@@ -1,11 +1,10 @@
 require('dotenv').config();
 let assert = require('assert');
-MockCache = require('./MockCache');
+MockCache = require('./MockCache'); // for mocking cache library
 logger = require('../config/logger');
 expect = require('chai').expect;
 env = require('../config/env');
 sinon = require('sinon');
-mockRequest = require('./MockRequest');
 DirectionsController = require('../server/directions/controller');
 request = require('request');
 sinonTest = require('sinon-test');
@@ -794,17 +793,46 @@ describe('Testing Directions Controller', function () {
       });
 
       promise
-        .then(function (result) {
+        .then(result => {
           return controller.getDirectionsFromDatabase(token);
-        }, function (err) {
-          assert.fail(err);
-          done();
+          },
+          err => {
+            done(new Error(err));
         })
         .then(function (result) {
           assert(result.status == 'in progress');
           done();
         });
 
+    });
+
+    it('Test Saving Route Info To Database with Error', function (done) {
+
+      cache = new MockCache({});
+      controller = new DirectionsController(cache, logger, db);
+
+      let stubbed = sinon.stub(db.collection('routes'), 'insert');
+      stubbed.yields('some error');
+
+      let promise = new Promise(function (resolve, reject) {
+        controller.createRouteInfoInDatabase('token', function (err) {
+          if (err) {
+            return reject(err);
+          }
+          resolve();
+        });
+      });
+
+      Promise.all([promise])
+        .then(results => {
+          expect(results[0]).to.be.equal(null);
+        })
+        .then(result => {
+          done(new Error('should not reach here'));
+        }, err => {
+          assert(err === 'some error');
+          done();
+        });
     });
   });
 
@@ -1348,7 +1376,8 @@ describe('Testing Directions Controller', function () {
         ],
       };
 
-      stubbed = sinon.stub(request, 'get').yields(null, null, body);
+      stubbed.yields(null, null, body);
+
       cache = new MockCache({});
       const controller = new DirectionsController(cache, logger);
 
@@ -1358,8 +1387,7 @@ describe('Testing Directions Controller', function () {
           assert(JSON.stringify(result) === JSON.stringify(data));
           done();
         }, function (err) {
-          assert.fail(err);
-          done();
+          done(new Error(err));
         });
     });
 
@@ -1377,7 +1405,7 @@ describe('Testing Directions Controller', function () {
       };
 
       let error = new Error('some error');
-      stubbed = sinon.stub(request, 'get').yields(error, null, errorBody);
+      stubbed.yields(error, null, errorBody);
       const controller = new DirectionsController(null, logger);
 
       controller.directionsFromGoogle(requestOptions, 'test')
@@ -1388,12 +1416,7 @@ describe('Testing Directions Controller', function () {
     });
 
     afterEach(function () {
-      if (stubbed !== null) {
-        console.log('test');
-        // console.log(stubbed);
         request.get.restore();
-        stubbed.restore();
-      }
     });
   });
 
@@ -1435,6 +1458,7 @@ describe('Testing Directions Controller', function () {
       expect(JSON.stringify(expectedData)).to.equal(JSON.stringify(data));
       done();
     });
+
     it('Test js object sanitation without any keys', function (done) {
       const data = {
         '_id': 'should not appear',
@@ -1482,4 +1506,5 @@ describe('Testing Directions Controller', function () {
       done();
     });
   });
+
 });

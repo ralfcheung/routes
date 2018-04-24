@@ -3,10 +3,10 @@
 let request = require('request');
 let uuid = require('uuid');
 let environment = require('../../config/env');
+let APIError = require('../../error/AppError');
 
 class DirectionsController {
-  // const request = require('request');
-  // const uuid = require('uuid');
+
   constructor(cache, logger, db) {
     this.cache = cache;
     this.logger = logger;
@@ -25,10 +25,11 @@ class DirectionsController {
     let that = this;
 
     return new Promise(function (resolve, reject) {
+
       that.cache.get(token, function (err, data) {
+
         if (err) {
-          reject(err);
-          return;
+          that.logger.debug('Error in memcached', err);
         }
 
         if (data) {
@@ -156,15 +157,14 @@ class DirectionsController {
   * */
   createRouteInfoInDatabase(id, cb = null) {
     const info = {'token': id, 'status': 'in progress'};
-    let that = this;
-    this.db.collection('routes').insert(info,
-      function (err) {
+
+    this.db.collection('routes').insert(info, err => {
         if (err) {
           if (process.env.NODE_ENV !== 'test') {
-            that.logger.error('Create Route Info Error:', err);
+            this.logger.warn('Create Route Info Error:', err);
           }
           if (cb !== null) {
-            cb();
+            cb(err);
           }
           return;
         }
@@ -172,7 +172,11 @@ class DirectionsController {
         if (cb !== null) {
           cb();
         }
-        that.logger.info('Created Route Info:', id);
+
+      if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
+        this.logger.info('Created Route Info:', id);
+      }
+
       });
 
     // cache it, even though it's pretty much an empty document
@@ -193,14 +197,13 @@ class DirectionsController {
       return;
     }
 
-    let that = this;
     // cache the route information for 30mins
-    this.cache.set(token, routeInfo, duration, function (err) {
+    this.cache.set(token, routeInfo, duration, err => {
 
       if (err) {
-        if (process.env.NODE_ENV != 'test') {
-          console.log(process.env.NODE_ENV);
-          that.logger.warn(err);
+        if (process.env.NODE_ENV === 'test'
+          || process.env.NODE_ENV === 'development') {
+          this.logger.warn(err);
         }
         if (cb) {
           cb(err);
@@ -208,7 +211,10 @@ class DirectionsController {
         return;
       }
 
-      that.logger.info('Cached route info:', token);
+      if (process.env.NODE_ENV === 'test'
+        || process.env.NODE_ENV === 'development') {
+        this.logger.info('Cached route info:', token);
+      }
 
       if (cb) {
         cb(null);
@@ -250,6 +256,14 @@ class DirectionsController {
     };
   }
 
+  /*
+  * Sanitize object function with list of keys,
+  * performs delete on the object itself, does not create a new object
+  *
+  * @param {Object} obj object to be sanitized
+  * @param {Array.String} keys to be sanitized in the object.
+  *
+  * */
   sanitizeRouteResponse(obj, keys = ['_id', 'token']) {
     if (keys instanceof Array && obj !== null && typeof obj === 'object') {
       keys.forEach((e) => delete obj[e]);
@@ -265,21 +279,18 @@ class DirectionsController {
       throw new Error('Missing token parameter');
     }
 
-    let that = this;
-
     this.getDirectionFromCache(token)
-      .then(function (result) {
+      .then(result => {
         if (result) {
-          that.sanitizeRouteResponse(result, ['_id', 'token']);
+          this.sanitizeRouteResponse(result, ['_id', 'token']);
           return res.send(result);
         }
-
-        return that.getDirectionsFromDatabase(token);
+        return this.getDirectionsFromDatabase(token);
         // db call to directions document
       })
-      .then(function (result) {
+      .then(result => {
         if (result) {
-          that.sanitizeRouteResponse(result, ['_id', 'token']);
+          this.sanitizeRouteResponse(result, ['_id', 'token']);
           return res.send(result);
         }
         return res.send({
@@ -292,28 +303,29 @@ class DirectionsController {
       });
   }
 
-  requestDirections(req, res) {
+  requestDirections(req, res, next) {
     let route = req.body.route;
 
     if (typeof route === 'undefined' || route.length < 2) {
-      res.statusCode = 412;
-      throw new Error('Incorrect body, should be: ' +
+
+      return next(new APIError('Incorrect body, should be: ' +
         '{route: [["ROUTE_START_LATITUDE\", ' +
         '\"ROUTE_START_LONGITUDE\"] [\"DROPOFF_LATITUDE_#1\",' +
-        ' \"DROPOFF_LONGITUDE_#1\"],' + '...]}');
+        ' \"DROPOFF_LONGITUDE_#1\"],' + '...]}', 412));
+
     }
 
+    // in actual production, the following request would be sent to a MQ (Kafka, Rabbit, etc)
+    // and processed by different consumers (e.g. analytics, actual directions request)
     const options = this.createDirectionsRequest(route);
     const id = uuid.v1();
 
     // create a route collection in database with status set to pending
     this.createRouteInfoInDatabase(id);
 
-    let that = this;
-
     // request directions
     this.directionsFromGoogle(options, id)
-      .then(that.saveDirectionsToDatabase.bind(that))
+      .then(this.saveDirectionsToDatabase.bind(this))
       .catch(this.logger.error.bind(this.logger));
 
     // return the token
