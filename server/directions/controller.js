@@ -38,13 +38,16 @@ class DirectionsController {
     return new Promise(function(resolve, reject) {
       that.cache.get(token, function(err, data) {
         if (err) {
+          console.log('memcached error');
           that.logger.debug('Error in memcached', err);
         }
 
         if (data) {
+          console.log('Found data in cache', token);
           that.logger.debug('Found data in cache', token);
           resolve(data);
         } else {
+          console.log('Didn\'t find data in cache', token);
           resolve(null);
         }
       });
@@ -185,10 +188,11 @@ class DirectionsController {
           cb();
         }
 
-      if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
+      if (process.env.NODE_ENV === 'test'
+        || process.env.NODE_ENV === 'development') {
         this.logger.info('Created Route Info:', id);
       }
-      });
+    });
 
     // cache it, even though it's pretty much an empty document
     this.saveRouteInfoToCache(info.token, info);
@@ -277,7 +281,7 @@ class DirectionsController {
   * @param {Object} obj object to be sanitized
   * @param {Array.String} keys to be sanitized in the object.
   *
-  * @return {Void}
+  * @return {Void} If obj or keys are null
   * */
   sanitizeRouteResponse(obj, keys = ['_id', 'token']) {
     if (keys instanceof Array && obj !== null && typeof obj === 'object') {
@@ -337,7 +341,7 @@ class DirectionsController {
   * @return {Void}
   * */
   requestDirections(req, res, next) {
-    let route = req.body.route;
+    let route = req.body;
 
     if (typeof route === 'undefined' || route.length < 2) {
       return next(new APIError('Incorrect body, should be: ' +
@@ -346,15 +350,16 @@ class DirectionsController {
         ' \"DROPOFF_LONGITUDE_#1\"],' + '...]}', 412));
     }
 
+    const id = uuid.v1();
+
+    // create a route collection in database with status set to pending
+    this.createRouteInfoInDatabase(id);
+
     // in actual production, the following request would be
     // sent to a MQ (Kafka, Rabbit, etc)
     // and processed by different consumers (e.g. analytics,
     // actual directions request)
     const options = this.createDirectionsRequest(route);
-    const id = uuid.v1();
-
-    // create a route collection in database with status set to pending
-    this.createRouteInfoInDatabase(id);
 
     // request directions
     this.directionsFromGoogle(options, id)

@@ -781,9 +781,10 @@ describe('Testing Directions Controller', function() {
       let promise = new Promise(function(resolve, reject) {
         controller.createRouteInfoInDatabase(token, function(err) {
           if (err) {
+            console.log(err);
             return reject(err);
           }
-          resolve();
+          return resolve();
         });
       });
 
@@ -795,9 +796,10 @@ describe('Testing Directions Controller', function() {
             done(new Error(err));
         })
         .then(function(result) {
-          assert(result.status == 'in progress');
+          assert(result.status === 'in progress');
           done();
-        });
+        })
+        .catch(done);
     });
 
     it('Test Saving Route Info To Database with Error', function(done) {

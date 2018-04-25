@@ -6,8 +6,6 @@ const logger = require('./logger');
 const options = {
   native_parser: true,
   poolSize: 5,
-  user: env.dbUser,
-  pass: env.dbPassword,
   auto_reconnect: true,
   // mongos: true     <- enable it for scaling
 };
@@ -20,6 +18,7 @@ connection.on('error', function() {
   logger.error('MongoDB connection error:');
   mongoose.disconnect(); // mongoose doesn't disconnect on error
   throw new Error('Disconnected from MongoDB');
+  // will let PM2 restart the server
 });
 
 connection.on('connected',
@@ -28,7 +27,17 @@ connection.on('connected',
 connection.on('disconnected', function() {
   logger.error('Disconnected from MongoDB');
   throw new Error('Disconnected from MongoDB');
+  // will let PM2 restart the server
 });
 
 connection.on('reconnected',
   logger.info.bind(logger, 'Reconnected to MongoDB'));
+
+// const options = {
+//   native_parser: true,
+//   poolSize: 5,
+//   user: env.dbUser,
+//   pass: env.dbPassword,
+//   auto_reconnect: true,
+//   // mongos: true     <- enable it for scaling
+// };

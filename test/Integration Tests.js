@@ -22,10 +22,8 @@ describe('Integration Tests', function() {
   });
 
   it('Request Direction', function(done) {
-    const body = {
-      'route': [[22.400584, 114.202878],
-        [22.386989, 114.191629], [22.386989, 114.191629]],
-    };
+    const body = [[22.400584, 114.202878],
+        [22.386989, 114.191629], [22.386989, 114.191629]];
 
     request(app)
       .post('/route')
@@ -39,10 +37,8 @@ describe('Integration Tests', function() {
   });
 
   it('Request Direction Incorrect Body', function(done) {
-    const body = {
-      'roue': [[22.400584, 114.202878],
-        [22.386989, 114.191629], [22.386989, 114.191629]],
-    };
+    const body = [[22.400584, 114.202878],  // need more than one location
+        ];
 
     request(app)
       .post('/route')
