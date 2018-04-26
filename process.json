@@ -1,0 +1,11 @@
+{
+  "apps": [
+    {
+      "name": "api-app",
+      "script": "./bin/www.js",
+      "instances": 1,
+      "exec_mode": "cluster",
+      "watch": true,
+    }
+  ]
+}

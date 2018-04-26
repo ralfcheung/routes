@@ -1,0 +1,57 @@
+version: '2'
+services:
+  mongo:
+    image: mongo:latest
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    networks:
+      samplenet:
+        aliases:
+          - "routedb"
+  memcached:
+    image: memcached:latest
+    container_name: memcached
+    ports:
+      - "11211:11211"
+    depends_on:
+      - mongo
+    networks:
+      samplenet:
+        aliases:
+          - "routedb"
+  mongoClientTemp:
+    image: mongo:latest
+    container_name: mongoClientTemp
+    links:
+      - mongo:mongo
+    environment:
+      - MONGODB_USER=admin
+      - MONGODB_DATABASE=routes
+      - MONGODB_PASS=12345678
+    command: "mongo --host routedb --eval \"db.getSiblingDB('routes').createUser({user: '$MONGODB_USER', pwd: '$MONGODB_PASS', roles:[{role: readWrite, db: '$MONGODB_DATABASE'}]})\""
+    depends_on:
+      - memcached
+    networks:
+      - samplenet
+  app:
+    build: .
+    environment:
+      - MONGODB_PORT=27017
+      - MONGODB_HOST=mongodb://routedb/routes
+      - MEMCACHED_HOST=routedb:11211  # in actual production, this would be recorded in the env.json
+      - NODE_ENV=development
+    ports:
+      - "3000:3000"
+    links:
+      - mongo:mongo
+      - memcached:memcached
+    depends_on:
+      - mongoClientTemp
+      - memcached
+    networks:
+      - samplenet
+
+networks:
+  samplenet:
+    driver: bridge

@@ -3,14 +3,14 @@
 2. Assume that this application sits behind a group of load balancers and can be accessed by the load balancers only.
 The ssl certificate would then be stripped out from the request and become a HTTP request.
 This increase the speed of the request as application layer no longer has to deal with HTTPS traffic, which has a significant
-performance impact. 
+performance impact.
 
-3. If the request takes too long to load, cancel and run the request again as the hold up is caused 
+3. If the request takes too long to load, cancel and run the request again as the hold up is caused
 by the memcached's network with docker (using bridge mode), there is a big performance hit.
 
-4. The use of memcached as cache is just for demo only, it can easily substitute to other 
-in-memory databases like Redis. If memcached is used, it can be easily 
-scaled up by adding more instances to the list of memcached servers (not performed here) 
+4. The use of memcached as cache is just for demo only, it can easily substitute to other
+in-memory databases like Redis. If memcached is used, it can be easily
+scaled up by adding more instances to the list of memcached servers (not performed here)
 
 5. In the real production environment, the request to create a route info would be sent to a MQ  
 to offload the loading of the application, and processed by other consumers.
@@ -22,4 +22,9 @@ an error occurs (e.g. disconnected from database or memcached cluster)
 
 8. To run the tests, you can use IntelliJ IDEA to run the test and show the test coverage
 
-9. The application is managed by PM2, when the application crashed, PM2 automatically restarts the app 
+9. The application is managed by PM2 (pm2-runtime), when the application crashed,
+PM2 automatically restarts the app
+
+10. To further scale the application in production, set the 'instance' in process.json
+to 0 to automatically start the number of node instances
+according to the number of processors.

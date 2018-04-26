@@ -1,0 +1,11 @@
+version: '2'
+services:
+  app:
+    build: .
+    environment:
+      - MONGODB_PORT=27017
+      - MONGODB_HOST=mongodb://mongoURL/routes
+      - MEMCACHED_HOST=cacheURL:11211
+      - NODE_ENV=development
+    ports:
+      - "3000:3000"
