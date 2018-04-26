@@ -20,7 +20,8 @@ an error occurs (e.g. disconnected from database or memcached cluster)
 
 7. MongoDB is used to scale the database layer horizontally.
 
-8. To run the tests, you can use IntelliJ IDEA to run the test and show the test coverage
+8. To run the tests, you can use IntelliJ IDEA to run the test and show the test coverage.
+    - To run the tests, you have to install a local mongo on the computer
 
 9. The application is managed by PM2 (pm2-runtime), when the application crashed,
 PM2 automatically restarts the app
